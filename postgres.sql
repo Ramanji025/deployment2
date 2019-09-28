@@ -325,4 +325,27 @@ TABLESPACE pg_default;
 ALTER TABLE public.book_voucher
     OWNER to postgres;
 	
+-- Table: public.book_opening_balance_track
 
+-- DROP TABLE public.book_opening_balance_track;
+
+CREATE TABLE public.book_opening_balance_track
+(
+    id numeric NOT NULL,
+    ledger_id numeric,
+    opening_balance double precision,
+    created_date date,
+    CONSTRAINT book_opening_balance_track_pkey PRIMARY KEY (id)
+)
+WITH (
+    OIDS = FALSE
+)
+TABLESPACE pg_default;
+
+ALTER TABLE public.book_opening_balance_track
+    OWNER to postgres;
+	
+	
+	
+	ALTER TABLE public.book_order_items
+    ALTER COLUMN created_date TYPE date ;
