@@ -349,3 +349,61 @@ ALTER TABLE public.book_opening_balance_track
 	
 	ALTER TABLE public.book_order_items
     ALTER COLUMN created_date TYPE date ;
+
+
+
+DROP TRIGGER opening_balance_changes ON book_ledgers;
+
+CREATE TRIGGER opening_balance_changes
+  AFTER UPDATE OR INSERT OR DELETE
+  ON BOOK_LEDGERS
+  FOR EACH ROW
+  EXECUTE PROCEDURE opening_balance();
+  
+  
+  
+
+CREATE or replace FUNCTION public.opening_balance()
+    RETURNS trigger
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE NOT LEAKPROOF
+AS $BODY$
+DECLARE
+opening numeric(10,2);
+opening_b numeric(10,2);
+BEGIN
+IF (TG_OP = 'UPDATE') THEN
+	select bo.opening_balance into opening_b from 
+		BOOK_OPENING_BALANCE_TRACK bo where bo.ledger_id = new.id;
+   IF NEW.opening_balance <> OLD.opening_balance THEN
+   		if(new.opening_balance > old.opening_balance) then
+			opening = new.opening_balance - old.opening_balance;
+		UPDATE BOOK_OPENING_BALANCE_TRACK SET OPENING_BALANCE = OLD.OPENING_BALANCE + opening
+		WHERE LEDGER_ID = NEW.ID;	
+		end if;
+		if(new.opening_balance < old.opening_balance) then 
+		opening = old.opening_balance - new.opening_balance;
+		UPDATE BOOK_OPENING_BALANCE_TRACK SET OPENING_BALANCE = OLD.OPENING_BALANCE - opening
+		WHERE LEDGER_ID = NEW.ID;
+		end if; 		
+		END IF; 
+END IF;
+
+IF (TG_OP = 'INSERT') THEN
+	INSERT INTO BOOK_OPENING_BALANCE_TRACK(id,ledger_id,opening_balance,created_date) 
+	values (nextval('hibernate_sequence'), new.id,new.opening_balance,current_date);
+END IF;
+   RETURN NEW;
+END;
+$BODY$;
+
+ALTER FUNCTION public.opening_balance()
+    OWNER TO postgres;
+
+
+
+truncate book_voucher cascade ;
+truncate book_order_items cascade;
+truncate book_voucher cascade;
+truncate book_orders cascade;
