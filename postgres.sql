@@ -326,3 +326,62 @@ ALTER TABLE public.book_voucher
     OWNER to postgres;
 	
 
+
+CREATE FUNCTION public.opening_balance()
+    RETURNS trigger
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE NOT LEAKPROOF
+AS $BODY$
+DECLARE
+opening numeric(10,2);
+opening_b numeric(10,2);
+BEGIN
+IF (TG_OP = 'UPDATE') THEN
+	select bo.opening_balance into opening_b from 
+		BOOK_OPENING_BALANCE_TRACK bo where bo.ledger_id = new.id;
+   IF NEW.opening_balance <> OLD.opening_balance THEN
+   		if(new.opening_balance > old.opening_balance) then
+			opening = new.opening_balance - old.opening_balance;
+		UPDATE BOOK_OPENING_BALANCE_TRACK SET OPENING_BALANCE = OLD.OPENING_BALANCE + opening
+		WHERE LEDGER_ID = NEW.ID;	
+		end if;
+		if(new.opening_balance < old.opening_balance) then 
+		opening = old.opening_balance - new.opening_balance;
+		UPDATE BOOK_OPENING_BALANCE_TRACK SET OPENING_BALANCE = OLD.OPENING_BALANCE - opening
+		WHERE LEDGER_ID = NEW.ID;
+		end if; 		
+		END IF; 
+END IF;
+
+IF (TG_OP = 'INSERT') THEN
+	INSERT INTO BOOK_OPENING_BALANCE_TRACK(id,ledger_id,opening_balance,created_date) 
+	values (nextval('hibernate_sequence'), new.id,new.opening_balance,current_date);
+END IF;
+   RETURN NEW;
+END;
+$BODY$;
+
+ALTER FUNCTION public.opening_balance()
+    OWNER TO postgres;
+	
+CREATE TRIGGER opening_balance_changes
+    AFTER INSERT OR DELETE OR UPDATE 
+    ON public.book_ledgers
+    FOR EACH ROW
+    EXECUTE PROCEDURE public.opening_balance();
+	
+	
+	ALTER TABLE public.book_item_master
+    ALTER COLUMN opening_quantity SET DEFAULT 0;
+
+ALTER TABLE public.book_item_master
+    ALTER COLUMN opening_quantity SET NOT NULL;
+
+ALTER TABLE public.book_item_master
+    ALTER COLUMN available_quantity SET DEFAULT 0;
+
+ALTER TABLE public.book_item_master
+    ALTER COLUMN available_quantity SET NOT NULL;
+	
+
